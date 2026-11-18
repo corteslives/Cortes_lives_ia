@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: cortador-lives-ia
+    runtime: docker
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: WHISPER_MODEL
+        value: tiny
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: MAX_UPLOAD_MB
+        value: "500"
