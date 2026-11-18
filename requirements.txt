@@ -1,5 +1,0 @@
-Flask>=3.0,<4
-google-genai>=1.0
-faster-whisper>=1.1
-yt-dlp>=2025.1.15
-gunicorn>=22
