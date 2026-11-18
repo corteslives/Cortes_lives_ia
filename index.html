@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#090909">
+  <title>Cortador de Lives com IA</title>
+  <style>
+    :root{color-scheme:dark;--bg:#090909;--panel:#151515;--line:#292929;--yellow:#ffd21a;--muted:#a5a5a5}
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:#f5f5f5;font:15px system-ui,-apple-system,Segoe UI,sans-serif}
+    .wrap{max-width:900px;margin:auto;padding:24px 16px 50px}.brand{display:flex;align-items:center;gap:12px;margin-bottom:24px}
+    .mark{width:42px;height:42px;border-radius:12px;background:var(--yellow);color:#111;display:grid;place-items:center;font-weight:900;font-size:22px}
+    h1{font-size:clamp(22px,5vw,32px);margin:0}.sub{color:var(--muted);margin:4px 0 0}
+    .panel{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:20px;margin:14px 0}
+    h2{font-size:18px;margin:0 0 16px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    label{display:block;color:#ddd;font-size:13px;margin:0 0 7px}
+    input,textarea{width:100%;border:1px solid #383838;background:#0d0d0d;color:white;border-radius:10px;padding:12px;font:inherit;min-width:0}
+    textarea{min-height:76px;resize:vertical}.full{grid-column:1/-1}
+    .file{border:1px dashed #555;padding:14px;border-radius:12px}
+    button,.download{border:0;border-radius:11px;padding:13px 18px;background:var(--yellow);color:#111;font-weight:800;font-size:15px;cursor:pointer;text-decoration:none;display:inline-block}
+    button:disabled{opacity:.5;cursor:not-allowed}.secondary{background:#282828;color:#fff}
+    .hint,.muted{color:var(--muted);font-size:13px}.status{display:flex;justify-content:space-between;gap:12px;align-items:center}
+    .bar{height:10px;background:#303030;border-radius:20px;overflow:hidden;margin:14px 0}.fill{height:100%;width:0;background:var(--yellow);transition:width .3s}
+    .clip{border:1px solid var(--line);border-radius:12px;padding:14px;margin:10px 0;display:flex;justify-content:space-between;gap:12px;align-items:center}
+    .clip strong{display:block;overflow-wrap:anywhere}.clip small{color:var(--muted)}
+    .error{color:#ff8585;white-space:pre-wrap}.success{color:#b7f5ad}.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    @media(max-width:620px){.wrap{padding:18px 12px 36px}.panel{padding:16px}.grid{grid-template-columns:1fr}.clip{align-items:flex-start;flex-direction:column}.clip a{width:100%;text-align:center}.status{align-items:flex-start;flex-direction:column}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header class="brand"><div class="mark">C</div><div><h1>Cortador de Lives com IA</h1><p class="sub">Transforme lives em cortes verticais para Reels e TikTok.</p></div></header>
+
+  <section class="panel">
+    <h2>Novo processamento</h2>
+    <form id="jobForm" class="grid">
+      <div class="full"><label for="youtube_url">Link do YouTube (opcional)</label><input id="youtube_url" name="youtube_url" type="url" inputmode="url" placeholder="https://www.youtube.com/watch?v=..."><p class="hint">Cole o link de um vídeo seu ou que você tenha autorização para usar. O servidor obtém o vídeo diretamente. Use apenas vídeos que você tem direito de processar.</p></div>
+      <div class="full" style="text-align:center;color:#888;font-size:13px">— OU envie um arquivo —</div>
+      <div class="full"><label for="video">Enviar vídeo do celular ou computador</label><input class="file" id="video" name="video" type="file" accept="video/*"><p class="hint">Você também pode continuar enviando um arquivo local.</p></div>
+      {% if not has_server_key %}
+      <div class="full"><label for="api_key">Chave da API Google Gemini</label><input id="api_key" name="api_key" type="password" autocomplete="off" placeholder="Cole sua chave Gemini (AIza...)" required><p class="hint">A chave é enviada ao servidor para iniciar o processamento e não é exibida nos resultados.</p></div>
+      {% else %}
+      <div class="full"><p class="success">Chave do Gemini configurada no servidor.</p></div>
+      {% endif %}
+      <div><label for="handle">Seu @</label><input id="handle" name="handle" value="{{ settings.handle }}"></div>
+      <div><label for="contexto">Quem aparece na live?</label><input id="contexto" name="contexto" value="{{ settings.contexto }}" placeholder="Ex.: nome do streamer"></div>
+      <div><label for="n">Quantidade de cortes</label><input id="n" name="n" type="number" min="1" max="10" value="{{ settings.n }}"></div>
+      <div class="grid">
+        <div><label for="min_s">Duração mínima (s)</label><input id="min_s" name="min_s" type="number" min="5" max="300" value="{{ settings.min_s }}"></div>
+        <div><label for="max_s">Duração máxima (s)</label><input id="max_s" name="max_s" type="number" min="5" max="600" value="{{ settings.max_s }}"></div>
+      </div>
+      <div class="full"><label for="logo">Logo (opcional)</label><input id="logo" type="file" accept="image/png,image/jpeg,image/webp"><p class="hint">{% if has_logo %}Uma logo já está salva.{% else %}Você pode enviar uma logo para aparecer nos cortes.{% endif %}</p></div>
+      <div class="full row"><button id="startBtn" type="submit">Gerar cortes com IA</button><span id="formMsg" class="hint" role="status"></span></div>
+    </form>
+  </section>
+
+  <section class="panel">
+    <div class="status"><h2>Andamento</h2><strong id="percent">0%</strong></div>
+    <div class="bar"><div class="fill" id="fill"></div></div>
+    <p id="message" class="muted" aria-live="polite">Aguardando um vídeo.</p>
+    <p id="error" class="error"></p>
+    <div id="warnings"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Cortes prontos</h2>
+    <div id="clips"><p class="muted">Seus vídeos aparecerão aqui quando terminarem.</p></div>
+  </section>
+  <p class="hint">Dica: mantenha esta página aberta durante o envio. O processamento continua no servidor mesmo se você atualizar a página, desde que o servidor permaneça ligado.</p>
+</div>
+<script>
+const form=document.getElementById('jobForm'), startBtn=document.getElementById('startBtn');
+const formMsg=document.getElementById('formMsg'), message=document.getElementById('message');
+const fill=document.getElementById('fill'), percent=document.getElementById('percent');
+const errorBox=document.getElementById('error'), clipsBox=document.getElementById('clips');
+let polling=false;
+
+async function refresh(){
+  try{
+    const r=await fetch('/api/state',{cache:'no-store'}), s=await r.json();
+    const p=Math.max(0,Math.min(100,Math.round((s.progress||0)*100)));
+    fill.style.width=p+'%'; percent.textContent=p+'%';
+    message.textContent=s.message || (s.status==='idle'?'Aguardando um vídeo.':'');
+    errorBox.textContent=s.error||'';
+    startBtn.disabled=s.status==='running';
+    document.getElementById('warnings').textContent=(s.avisos||[]).join(' | ');
+    if(s.clips && s.clips.length){
+      clipsBox.innerHTML='';
+      s.clips.forEach(c=>{
+        const item=document.createElement('div'); item.className='clip';
+        const info=document.createElement('div');
+        const title=document.createElement('strong'); title.textContent=c.headline;
+        const meta=document.createElement('small'); meta.textContent=`${Number(c.start).toFixed(1)}s – ${Number(c.end).toFixed(1)}s · versão ${c.version}`;
+        info.append(title,meta);
+        const link=document.createElement('a'); link.className='download'; link.href=c.download_url; link.textContent='Baixar MP4';
+        item.append(info,link); clipsBox.append(item);
+      });
+    }else if(s.status!=='running'){clipsBox.innerHTML='<p class="muted">Nenhum corte pronto ainda.</p>';}
+  }catch(e){message.textContent='Não foi possível consultar o servidor.';}
+}
+form.addEventListener('submit',async e=>{
+  e.preventDefault(); errorBox.textContent=''; formMsg.textContent='Preparando envio...';
+  startBtn.disabled=true;
+  try{
+    const logo=document.getElementById('logo').files[0];
+    if(logo){const ld=new FormData();ld.append('logo',logo);const lr=await fetch('/api/logo',{method:'POST',body:ld});const lj=await lr.json();if(!lr.ok)throw new Error(lj.error||'Falha ao enviar logo.');}
+    const url=document.getElementById('youtube_url').value.trim();
+    const file=document.getElementById('video').files[0];
+    if(!url && !file) throw new Error('Cole um link do YouTube ou selecione um vídeo.');
+    if(url && file) throw new Error('Escolha apenas uma opção: link do YouTube ou arquivo.');
+    const fd=new FormData(form);
+    const r=await fetch('/api/start',{method:'POST',body:fd});
+    const data=await r.json(); if(!r.ok)throw new Error(data.error||'Falha ao iniciar.');
+    formMsg.textContent=data.message || 'Vídeo enviado. Processamento iniciado.';
+    await refresh();
+  }catch(err){formMsg.textContent='';errorBox.textContent=err.message;startBtn.disabled=false;}
+});
+refresh(); setInterval(refresh,2500);
+</script>
+</body></html>
