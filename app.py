@@ -3,24 +3,18 @@ import os
 import uuid
 from pathlib import Path
 
-from flask import Flask, jsonify, render_template, request, send_file, abort
+from flask import Flask, jsonify, render_template_string, request, send_file, abort
 from werkzeug.utils import secure_filename
 
 import core
 
 APP_DIR = Path(__file__).resolve().parent
-TEMPLATE_DIR = APP_DIR / "templates"
-
 UPLOAD_DIR = core.DATA_DIR / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 ALLOWED_EXTENSIONS = {"mp4", "mov", "mkv", "webm", "avi", "m4v"}
 
-# Caminho explícito para encontrar o HTML
-app = Flask(
-    __name__,
-    template_folder=str(TEMPLATE_DIR)
-)
+app = Flask(__name__)
 
 app.config["MAX_CONTENT_LENGTH"] = (
     int(os.environ.get("MAX_UPLOAD_MB", "2048")) * 1024 * 1024
@@ -44,14 +38,15 @@ def index():
     settings = core.load_settings()
     state = core.read_state()
 
-    # Verifica se o HTML realmente existe
-    html_file = TEMPLATE_DIR / "index.html"
+    html_file = APP_DIR / "index.html"
 
     if not html_file.is_file():
-        return jsonify(error="Arquivo templates/index.html não encontrado"), 500
+        return jsonify(error="Arquivo index.html não encontrado na pasta principal."), 500
 
-    return render_template(
-        "index.html",
+    html = html_file.read_text(encoding="utf-8")
+
+    return render_template_string(
+        html,
         settings=settings,
         state=state,
         has_logo=bool(core.logo_path()),
@@ -150,6 +145,7 @@ def start():
                 raise RuntimeError(
                     "Não foi possível baixar o vídeo do YouTube. Verifique se o link é público e tente enviar o arquivo."
                 )
+
         else:
             video.save(upload_path)
 
@@ -168,7 +164,16 @@ def start():
             "max_s": max_s
         })
 
-        core.start_job(job_video, logo, handle, contexto, n, min_s, max_s, api_key)
+        core.start_job(
+            job_video,
+            logo,
+            handle,
+            contexto,
+            n,
+            min_s,
+            max_s,
+            api_key
+        )
 
     except Exception as exc:
         try:
@@ -256,5 +261,5 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=int(os.environ.get("PORT", "8000")),
         debug=False
-    )
-    
+        )
+        
